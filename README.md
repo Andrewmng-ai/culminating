@@ -2,3 +2,4 @@
 Digital Portfolio
 
 ## DEVELOPMENT PROCESS
+### PLANNING
