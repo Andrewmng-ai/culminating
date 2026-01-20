@@ -2,7 +2,7 @@
 Digital Portfolio
 
 ## GAME IDEA
-We wanted to make a rougelike game with a space theme to show our understanding of the course materials and also to challenge ourselves and have fun at the same time. 
+We wanted to make a rougelike game with a space theme to show our understanding of the course materials and also to challenge ourselves and have fun at the same time. As we both enjoy playing rougelike games, we wanted to try to make one ourselves and see how it would go. 
 
 ### TASKS
 Player and enemy movement, health, UI, bosses, wave progression, sectors, graphics, pseudocode - ANDREW
