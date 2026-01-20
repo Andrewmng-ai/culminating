@@ -18,10 +18,87 @@ Upgrades, enemy attacks, IPO charts, character selection, game states, animation
   - Variables were used throughout all aspects and parts of the game, helped make it easier to code and change values/behaviours.
   - Using arrays for enemies and upgrades, allows for multiple values
 
+// PLAYER STUFF
+float playerX, playerY;
+float playerSpeed = 10;
+float playerMaxHealth = 100;
+float playerHealth = 100;
+
+float playerHitbox;
+
+boolean movingLeft = false;
+boolean movingRight = false;
+boolean movingUp = false;
+boolean movingDown = false;
+
+int playerHitCooldown = 0;
+
+// BULLET STUFF
+ArrayList<Float> bulletX = new ArrayList<Float>();
+ArrayList<Float> bulletY = new ArrayList<Float>();
+ArrayList<Float> bulletAngle = new ArrayList<Float>();
+float bulletSpeed = 30;
+int shootDelay = 0;
+int shootTimer = 0;
+int bulletDamage = 20;
+
+// ENEMY STUFF
+ArrayList<Float> enemyX = new ArrayList<Float>();
+ArrayList<Float> enemyY = new ArrayList<Float>();
+ArrayList<Float> enemyHP = new ArrayList<Float>();
+ArrayList<Integer> enemyType = new ArrayList<Integer>();
+
+
 **January 12th**
 
 - Finished player and enemy movement, started on damage and wave progression.
 - Using if statements for sectors and waves for enemy spawning. This fixed the enemies spawning indefinitely and allowed me to have different enemy counts for different waves.
+
+// enemy movement + repulsion
+void enemyLogic() {
+  for (int i = enemyX.size() - 1; i >= 0; i--) {
+    float angleToPlayer = atan2(playerY - enemyY.get(i), playerX - enemyX.get(i));
+    float vx = cos(angleToPlayer) * enemySpeed[enemyType.get(i)];
+    float vy = sin(angleToPlayer) * enemySpeed[enemyType.get(i)];
+    // repel enemies from other enemies
+    for (int j = 0; j < enemyX.size(); j++) {
+      if (i == j) continue;
+      float dx = enemyX.get(i) - enemyX.get(j);
+      float dy = enemyY.get(i) - enemyY.get(j);
+      float d = sqrt(dx*dx + dy*dy);
+      if (d < repulsionDistance && d > 0) {
+        float push = (repulsionDistance - d) / d * 0.5;
+        vx += dx * push;
+        vy += dy * push;
+      }
+    }
+    enemyX.set(i, enemyX.get(i) + vx);
+    enemyY.set(i, enemyY.get(i) + vy);
+    // player collision with enemies
+    float dPlayer = dist(playerX, playerY, enemyX.get(i), enemyY.get(i));
+    if (playerHitCooldown <= 0 && dPlayer < playerHitbox + enemyHitbox[enemyType.get(i)]) {
+      playerHealth -= enemyDamage[enemyType.get(i)];
+      playerHitCooldown = 20;
+    }
+    // bullet collision with enemies
+    for (int b = bulletX.size() - 1; b >= 0; b--) {
+      if (dist(bulletX.get(b), bulletY.get(b), enemyX.get(i), enemyY.get(i)) < enemyHitbox[enemyType.get(i)]) {
+        enemyHP.set(i, enemyHP.get(i) - bulletDamage);
+        bulletX.remove(b);
+        bulletY.remove(b);
+        bulletAngle.remove(b);
+        break;
+      }
+    }
+    // remove dead enemies
+    if (enemyHP.get(i) <= 0) {
+      enemyX.remove(i);
+      enemyY.remove(i);
+      enemyHP.remove(i);
+      enemyType.remove(i);
+    }
+  }
+}
 
 **January 14th**
 
@@ -42,12 +119,429 @@ Upgrades, enemy attacks, IPO charts, character selection, game states, animation
 
 - Finished most of boss code
 - Boss 3 in progress
+- Sectors completed
 - Adding finishing touches to game
+
+void nextSector() {
+  if (currentSector >= 3) {
+    gameOver = true;
+    return;
+  }
+
+  currentSector++;
+
+  // reset waves
+  currentWave = 1;
+  enemiesSpawnedThisWave = 0;
+  waveActive = true;
+
+  waveMultiplier = 1 + currentSector * 0.4;
+
+  // sector based scaling
+  if (currentSector == 2) {
+    enemySpeed = new float[]{4, 3, 1};
+    enemyMaxHP = new float[]{40, 80, 60};
+    enemyDamage = new float[]{8, 16, 8};
+    bossMaxHP = 2000;
+    backgroundColor = color(90, 10, 10);
+  }
+
+  if (currentSector == 3) {
+    enemySpeed = new float[]{5, 4, 1};
+    enemyMaxHP = new float[]{80, 120, 70};
+    enemyDamage = new float[]{10, 20, 10};
+    bossMaxHP = 4000;
+    backgroundColor = color(70, 0, 90);
+  }
+}
 
 **January 19th**
 
 - Completed boss code
 - Polishing and bug testing game
+
+// BOSS
+boolean bossAlive = false;
+float bossX, bossY;
+float bossHP;
+float bossMaxHP = 1000;
+float bossHitbox = 75;
+
+// BOSS 3 ATKS
+// more homing
+ArrayList<Float> boss3OrbX = new ArrayList<Float>();
+ArrayList<Float> boss3OrbY = new ArrayList<Float>();
+ArrayList<Float> boss3OrbAngle = new ArrayList<Float>();
+
+int boss3OrbCount = 6;
+float boss3OrbSpeed = 5;
+float boss3OrbTurnSpeed = 0.08;
+float boss3OrbHitbox = 14;
+int boss3OrbDamage = 40;
+int boss3OrbCooldown = 240;
+int boss3OrbTimer = 0;
+
+ArrayList<Integer> boss3OrbLife = new ArrayList<Integer>();
+int boss3OrbHomingTime = 120;
+
+// small slam
+boolean boss3SlamActive = false;
+boolean boss3SlamFiring = false;
+int boss3SlamTimer = 0;
+int boss3SlamBuildTime = 60;
+int boss3SlamFireTime = 45;
+int boss3SlamCooldown = 300;
+int boss3SlamCount = 6;
+float[] boss3SlamX = new float[boss3SlamCount];
+float[] boss3SlamY = new float[boss3SlamCount];
+float boss3SlamRadius = 90;
+int boss3SlamDamage = 30;
+boolean boss3SlamDidDamage = false;
+
+// BOSS 2 ATKS
+// ROCKS
+ArrayList<Float> rockX = new ArrayList<Float>();
+ArrayList<Float> rockY = new ArrayList<Float>();
+float rockSpeed = 3;
+float rockSize = 50;
+int rockDamage = 30;
+int rockSpawnCooldown = 60;
+int rockSpawnTimer = 0;
+
+// MISSION IMPOSSIBLE
+boolean gridActive = false;
+boolean gridFiring = false;
+int gridTimer = 0;
+int gridBuildTime = 90;
+int gridFireTime = 60;
+float gridSpacing = 120;
+
+// SCREEN SLAM
+boolean slamActive = false;
+boolean slamLeft = true;
+int slamTimer = 0;
+int slamChargeTime = 90;
+int slamDamage = 50;
+
+// BOSS 1 ATKS
+int bossAttackTimer = 0;
+
+// LASER PHASES
+int bossLaserTrackTime = 60;
+int bossLaserWaitTime  = 45;
+int bossLaserFireTime  = 90;
+
+boolean bossLaserActive = false;
+boolean bossLaserFiring = false;
+boolean bossLaserDidDamage = false;
+
+float bossLaserAngle = 0;
+
+// LASER
+int bossLaserTimer = 0;
+int bossLaserPhase = 0;
+float bossLaserWidth = 20;
+int bossLaserDamage = 40;
+
+// ROCKETS
+int bossRocketCooldown = 300;
+int bossRocketTimer = 0;
+int bossRocketCount = 4;
+
+ArrayList<Float> bossRocketX = new ArrayList<Float>();
+ArrayList<Float> bossRocketY = new ArrayList<Float>();
+ArrayList<Float> bossRocketAngle = new ArrayList<Float>();
+ArrayList<Integer> bossRocketTrackTime = new ArrayList<Integer>();
+
+int bossRocketTrackMax = 120;
+float bossRocketSpeed = 4;
+float bossRocketHitbox = 12;
+int bossRocketDamage = 20;
+
+// SUMMON
+int bossSummonCooldown = 300;
+int bossSummonTimer = 0;
+
+// BOSS SPRITES
+PImage boss1, boss2, boss3;
+
+void bossLogic() {
+  if (!bossAlive) return;
+
+  // player bullets hit boss
+  for (int b = bulletX.size() - 1; b >= 0; b--) {
+    if (dist(bulletX.get(b), bulletY.get(b), bossX, bossY) < bossHitbox) {
+      bossHP -= bulletDamage;
+      bulletX.remove(b);
+      bulletY.remove(b);
+      bulletAngle.remove(b);
+    }
+  }
+
+  // sector 1 attacks only
+  if (currentSector == 1) {
+    bossAttackTimer++;
+    bossSummonTimer--;
+    // rocket stuff
+    bossRocketTimer--;
+    if (bossRocketTimer <= 0) {
+      float radius = bossHitbox + 20;
+      float baseAngle = random(TWO_PI);
+      for (int i = 0; i < bossRocketCount; i++) {
+        float angleOffset = TWO_PI / bossRocketCount * i;
+        float spawnAngle = baseAngle + angleOffset;
+        float sx = bossX + cos(spawnAngle) * radius;
+        float sy = bossY + sin(spawnAngle) * radius;
+        bossRocketX.add(sx);
+        bossRocketY.add(sy);
+        bossRocketAngle.add(atan2(playerY - sy, playerX - sx) + random(-0.25, 0.25));
+        bossRocketTrackTime.add(bossRocketTrackMax);
+      }
+      bossRocketTimer = bossRocketCooldown;
+    }
+    // laser
+    if (bossLaserPhase == 0 && bossAttackTimer % 360 == 0) {
+      bossLaserPhase = 1;
+      bossLaserTimer = bossLaserTrackTime;
+      bossLaserDidDamage = false;
+    }
+    if (bossLaserPhase != 0) {
+      if (bossLaserPhase == 1) {
+        bossLaserAngle = atan2(playerY - bossY, playerX - bossX);
+        bossLaserTimer--;
+        if (bossLaserTimer <= 0) {
+          bossLaserPhase = 2;
+          bossLaserTimer = bossLaserWaitTime;
+        }
+      } else if (bossLaserPhase == 2) {
+        bossLaserTimer--;
+        if (bossLaserTimer <= 0) {
+          bossLaserPhase = 3;
+          bossLaserTimer = bossLaserFireTime;
+        }
+      } else if (bossLaserPhase == 3) {
+        bossLaserTimer--;
+        float px = playerX - bossX;
+        float py = playerY - bossY;
+        float proj = px * cos(bossLaserAngle) + py * sin(bossLaserAngle);
+        float distToBeam = abs(px * sin(bossLaserAngle) - py * cos(bossLaserAngle));
+        if (!bossLaserDidDamage && proj > 0 && distToBeam < bossLaserWidth) {
+          playerHealth -= bossLaserDamage;
+          bossLaserDidDamage = true;
+        }
+        if (bossLaserTimer <= 0) bossLaserPhase = 0;
+      }
+    }
+    // necromancer
+    if (bossSummonTimer <= 0) {
+      for (int i = 0; i < 3; i++) {
+        enemyX.add(bossX + random(-80, 80));
+        enemyY.add(bossY + random(60, 120));
+        int type = int(random(3));
+        enemyType.add(type);
+        enemyHP.add(enemyMaxHP[type]);
+        enemy2Cooldown.add(type == 2 ? 0 : -1);
+      }
+      bossSummonTimer = bossSummonCooldown;
+    }
+    // player collision
+    if (playerHitCooldown <= 0 &&
+      dist(playerX, playerY, bossX, bossY) < bossHitbox + playerHitbox) {
+      playerHealth -= 30;
+      playerHitCooldown = 30;
+    }
+    // rockets move
+    for (int i = bossRocketX.size() - 1; i >= 0; i--) {
+      float x = bossRocketX.get(i);
+      float y = bossRocketY.get(i);
+      float angle = bossRocketAngle.get(i);
+      if (bossRocketTrackTime.get(i) > 0) {
+        // tracking while rockets still active
+        angle = atan2(playerY - y, playerX - x);
+        bossRocketAngle.set(i, angle);
+        bossRocketTrackTime.set(i, bossRocketTrackTime.get(i) - 1);
+      }
+      x += cos(angle) * bossRocketSpeed;
+      y += sin(angle) * bossRocketSpeed;
+      bossRocketX.set(i, x);
+      bossRocketY.set(i, y);
+      // hit player
+      if (dist(x, y, playerX, playerY) < playerHitbox + bossRocketHitbox) {
+        playerHealth -= bossRocketDamage;
+        bossRocketX.remove(i);
+        bossRocketY.remove(i);
+        bossRocketAngle.remove(i);
+        bossRocketTrackTime.remove(i);
+        continue;
+      }
+      // off screen
+      if (x < -50 || x > width + 50 || y < -50 || y > height + 50) {
+        bossRocketX.remove(i);
+        bossRocketY.remove(i);
+        bossRocketAngle.remove(i);
+        bossRocketTrackTime.remove(i);
+      }
+    }
+  }
+  // BOSS 2
+  if (currentSector == 2) {
+    bossAttackTimer++;
+    // rocky
+    rockSpawnTimer--;
+    if (rockSpawnTimer <= 0) {
+      rockX.add(random(width));
+      rockY.add(-60f);
+      rockSpawnTimer = rockSpawnCooldown;
+    }
+    for (int i = rockX.size() - 1; i >= 0; i--) {
+      rockY.set(i, rockY.get(i) + rockSpeed);
+      if (dist(rockX.get(i), rockY.get(i), playerX, playerY) < rockSize/2 + playerHitbox) {
+        playerHealth -= rockDamage;
+        rockX.remove(i);
+        rockY.remove(i);
+        continue;
+      }
+      if (rockY.get(i) > height + 80) {
+        rockX.remove(i);
+        rockY.remove(i);
+      }
+    }
+    // mission impossible
+    if (!gridActive && bossAttackTimer % 420 == 0) {
+      gridActive = true;
+      gridFiring = false;
+      gridTimer = gridBuildTime;
+    }
+    if (gridActive) {
+      gridTimer--;
+      if (!gridFiring && gridTimer <= 0) {
+        gridFiring = true;
+        gridTimer = gridFireTime;
+      }
+      if (gridFiring) {
+        for (float x = gridSpacing/2; x < width; x += gridSpacing) {
+          if (abs(playerX - x) < bossLaserWidth) {
+            playerHealth -= bossLaserDamage;
+          }
+        }
+        for (float y = gridSpacing/2; y < height; y += gridSpacing) {
+          if (abs(playerY - y) < bossLaserWidth) {
+            playerHealth -= bossLaserDamage;
+          }
+        }
+      }
+      if (gridTimer <= 0 && gridFiring) {
+        gridActive = false;
+      }
+    }
+    // screen slam
+    if (!slamActive && bossAttackTimer % 300 == 0) {
+      slamActive = true;
+      slamLeft = random(1) < 0.5;
+      slamTimer = slamChargeTime;
+    }
+    if (slamActive) {
+      slamTimer--;
+      if (slamTimer <= 0) {
+        boolean hit =
+          (slamLeft && playerX < width/2) ||
+          (!slamLeft && playerX > width/2);
+        if (hit) playerHealth -= slamDamage;
+        slamActive = false;
+      }
+    }
+  }
+  // BOSS 3
+  if (currentSector == 3) {
+    bossAttackTimer++;
+    // more homing
+    boss3OrbTimer--;
+    if (boss3OrbTimer <= 0) {
+      for (int i = 0; i < boss3OrbCount; i++) {
+        float angle = TWO_PI / boss3OrbCount * i;
+        boss3OrbX.add(bossX);
+        boss3OrbY.add(bossY);
+        boss3OrbAngle.add(angle);
+        boss3OrbLife.add(boss3OrbHomingTime);
+      }
+      boss3OrbTimer = boss3OrbCooldown;
+    }
+    // move homing orbs
+    for (int i = boss3OrbX.size() - 1; i >= 0; i--) {
+      float x = boss3OrbX.get(i);
+      float y = boss3OrbY.get(i);
+      float a = boss3OrbAngle.get(i);
+      int life = boss3OrbLife.get(i);
+      if (life > 0) {
+        a = atan2(playerY - y, playerX - x);
+        boss3OrbLife.set(i, life - 1);
+      }
+      x += cos(a) * boss3OrbSpeed;
+      y += sin(a) * boss3OrbSpeed;
+      boss3OrbX.set(i, x);
+      boss3OrbY.set(i, y);
+      boss3OrbAngle.set(i, a);
+      // hit player
+      if (dist(x, y, playerX, playerY) < playerHitbox + boss3OrbHitbox) {
+        playerHealth -= boss3OrbDamage;
+        boss3OrbX.remove(i);
+        boss3OrbY.remove(i);
+        boss3OrbAngle.remove(i);
+        boss3OrbLife.remove(i);
+        continue;
+      }
+      // off screen
+      if (x < -60 || x > width+60 || y < -60 || y > height+60) {
+        boss3OrbX.remove(i);
+        boss3OrbY.remove(i);
+        boss3OrbAngle.remove(i);
+        boss3OrbLife.remove(i);
+      }
+    }
+    // slams yay
+    boss3SlamTimer--;
+    if (!boss3SlamActive && boss3SlamTimer <= 0) {
+      boss3SlamActive = true;
+      boss3SlamFiring = false;
+      boss3SlamTimer = boss3SlamBuildTime;
+      // random positions for slams
+      for (int i = 0; i < boss3SlamCount; i++) {
+        boss3SlamX[i] = random(100, width-100);
+        boss3SlamY[i] = random(100, height-100);
+      }
+    }
+    if (boss3SlamActive) {
+      boss3SlamDidDamage = false;
+      boss3SlamTimer--;
+      // firing phase
+      if (!boss3SlamFiring && boss3SlamTimer <= 0) {
+        boss3SlamFiring = true;
+        boss3SlamTimer = boss3SlamFireTime;
+      }
+      // damage player
+      if (boss3SlamFiring && !boss3SlamDidDamage) {
+        for (int i = 0; i < boss3SlamCount; i++) {
+          if (dist(playerX, playerY, boss3SlamX[i], boss3SlamY[i]) < boss3SlamRadius) {
+            playerHealth -= boss3SlamDamage;
+            boss3SlamDidDamage = true;
+            break;
+          }
+        }
+      }
+    }
+    if (boss3SlamFiring && boss3SlamTimer <= 0) {
+      boss3SlamActive = false;
+      boss3SlamTimer = boss3SlamCooldown;
+    }
+  }
+
+  // death
+  if (bossHP <= 0 && bossAlive) {
+    bossAlive = false;
+    resetBoss();
+    nextSector();
+  }
+}
 
 ### Aiham
 
